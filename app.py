@@ -4,22 +4,13 @@ from flask import Flask, request
 
 app = Flask(__name__)
 
-# Получаем токены из переменных окружения
 BOT_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
 
-# URL для отправки сообщений в Telegram
 TELEGRAM_URL = f'https://api.telegram.org/bot{BOT_TOKEN}/sendMessage'
-
-# URL API OpenRouter
 OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
-
-# Бесплатная модель
 DEFAULT_MODEL = 'openrouter/free'
 
-# ============================================
-# ПРИВЕТСТВЕННОЕ СООБЩЕНИЕ (можно менять!)
-# ============================================
 WELCOME_MESSAGE = """
 👋 Привет! Я **Курсорик** — твой ИИ-помощник.
 
@@ -34,7 +25,6 @@ WELCOME_MESSAGE = """
 
 🔹 Попробуй: задай вопрос, попроси перевести или написать текст.
 """
-# ============================================
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -44,13 +34,19 @@ def webhook():
             chat_id = data['message']['chat']['id']
             user_text = data['message'].get('text')
             
-            # Обработка команды /start
+            # Обработка команды /start (без статуса)
             if user_text == '/start':
                 send_telegram_message(chat_id, WELCOME_MESSAGE)
                 return 'ok', 200
             
             if user_text:
+                # 1. Сразу отправляем статус "Думаю..."
+                send_telegram_message(chat_id, '⏳ Думаю...')
+                
+                # 2. Получаем ответ от ИИ
                 bot_reply = ask_openrouter(user_text)
+                
+                # 3. Отправляем ответ
                 send_telegram_message(chat_id, bot_reply)
         
         return 'ok', 200
@@ -68,15 +64,14 @@ def ask_openrouter(prompt):
         'messages': [{'role': 'user', 'content': prompt}]
     }
     try:
-        response = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=30)
-        print(f'OpenRouter статус: {response.status_code}')
+        response = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=60)
         if response.status_code != 200:
-            print(f'Ошибка: {response.text}')
-            return 'Ошибка подключения к ИИ. Попробуйте позже.'
+            print(f'Ошибка OpenRouter: {response.status_code}, {response.text}')
+            return 'Извините, произошла ошибка при обращении к ИИ. Попробуйте позже.'
         result = response.json()
         return result['choices'][0]['message']['content']
     except Exception as e:
-        print(f'Ошибка: {e}')
+        print(f'Ошибка запроса: {e}')
         return f'Ошибка: {str(e)}'
 
 def send_telegram_message(chat_id, text):
