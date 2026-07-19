@@ -15,7 +15,7 @@ TELEGRAM_URL = f'https://api.telegram.org/bot{BOT_TOKEN}/sendMessage'
 OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
 # Модель по умолчанию (бесплатная и стабильная)
-DEFAULT_MODEL = 'google/gemma-2-9b-it'  # заменила на бесплатную модель
+DEFAULT_MODEL = 'openrouter/free'  # заменила на бесплатную модель
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
