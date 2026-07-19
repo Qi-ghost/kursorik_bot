@@ -8,6 +8,7 @@ BOT_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
 
 TELEGRAM_URL = f'https://api.telegram.org/bot{BOT_TOKEN}/sendMessage'
+DELETE_MESSAGE_URL = f'https://api.telegram.org/bot{BOT_TOKEN}/deleteMessage'
 OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
 DEFAULT_MODEL = 'openrouter/free'
 
@@ -34,19 +35,22 @@ def webhook():
             chat_id = data['message']['chat']['id']
             user_text = data['message'].get('text')
             
-            # Обработка команды /start (без статуса)
             if user_text == '/start':
                 send_telegram_message(chat_id, WELCOME_MESSAGE)
                 return 'ok', 200
             
             if user_text:
-                # 1. Сразу отправляем статус "Думаю..."
-                send_telegram_message(chat_id, '⏳ Думаю...')
+                # 1. Отправляем статус "Думаю..."
+                status_msg = send_telegram_message(chat_id, '⏳ Думаю...')
                 
                 # 2. Получаем ответ от ИИ
                 bot_reply = ask_openrouter(user_text)
                 
-                # 3. Отправляем ответ
+                # 3. Удаляем статус (если он отправился)
+                if status_msg and status_msg.get('message_id'):
+                    delete_telegram_message(chat_id, status_msg['message_id'])
+                
+                # 4. Отправляем финальный ответ
                 send_telegram_message(chat_id, bot_reply)
         
         return 'ok', 200
@@ -75,11 +79,28 @@ def ask_openrouter(prompt):
         return f'Ошибка: {str(e)}'
 
 def send_telegram_message(chat_id, text):
+    """Отправляет сообщение и возвращает ответ с message_id"""
     payload = {'chat_id': chat_id, 'text': text}
     try:
-        requests.post(TELEGRAM_URL, json=payload, timeout=10)
+        response = requests.post(TELEGRAM_URL, json=payload, timeout=10)
+        if response.status_code == 200:
+            return response.json()['result']
+        else:
+            print(f'Ошибка отправки: {response.text}')
+            return None
     except Exception as e:
         print(f'Ошибка отправки: {e}')
+        return None
+
+def delete_telegram_message(chat_id, message_id):
+    """Удаляет сообщение по chat_id и message_id"""
+    payload = {'chat_id': chat_id, 'message_id': message_id}
+    try:
+        response = requests.post(DELETE_MESSAGE_URL, json=payload, timeout=10)
+        if response.status_code != 200:
+            print(f'Ошибка удаления: {response.text}')
+    except Exception as e:
+        print(f'Ошибка удаления: {e}')
 
 @app.route('/')
 def index():
