@@ -14,8 +14,8 @@ TELEGRAM_URL = f'https://api.telegram.org/bot{BOT_TOKEN}/sendMessage'
 # URL API OpenRouter
 OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
-# Модель по умолчанию
-DEFAULT_MODEL = 'openai/gpt-3.5-turbo'
+# Модель по умолчанию (бесплатная и стабильная)
+DEFAULT_MODEL = 'google/gemma-2-9b-it'  # заменила на бесплатную модель
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -45,12 +45,19 @@ def ask_openrouter(prompt):
     }
     try:
         response = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=30)
-        response.raise_for_status()
+        
+        # Логируем ответ для отладки
+        print(f'Статус ответа OpenRouter: {response.status_code}')
+        
+        if response.status_code != 200:
+            print(f'Текст ошибки: {response.text}')
+            return 'Ошибка подключения к ИИ. Проверьте ключ или баланс.'
+        
         result = response.json()
         return result['choices'][0]['message']['content']
     except Exception as e:
-        print(f'Ошибка OpenRouter: {e}')
-        return 'Извините, произошла ошибка. Попробуйте позже.'
+        print(f'Ошибка при запросе к OpenRouter: {e}')
+        return f'Ошибка: {str(e)}'
 
 def send_telegram_message(chat_id, text):
     payload = {'chat_id': chat_id, 'text': text}
@@ -64,7 +71,6 @@ def index():
     return 'Курсорик работает!'
 
 def set_webhook():
-    # ВАЖНО: замените kursorik-bot-rkb2 на ваш реальный адрес!
     webhook_url = 'https://kursorik-bot-rkb2.onrender.com/webhook'
     url = f'https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={webhook_url}'
     try:
@@ -78,5 +84,4 @@ def set_webhook():
 
 if __name__ == '__main__':
     set_webhook()
-    # Правильный порт для Render
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
