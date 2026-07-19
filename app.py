@@ -14,8 +14,27 @@ TELEGRAM_URL = f'https://api.telegram.org/bot{BOT_TOKEN}/sendMessage'
 # URL API OpenRouter
 OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
-# Модель по умолчанию (бесплатная и стабильная)
-DEFAULT_MODEL = 'openrouter/free'  # заменила на бесплатную модель
+# Бесплатная модель
+DEFAULT_MODEL = 'openrouter/free'
+
+# ============================================
+# ПРИВЕТСТВЕННОЕ СООБЩЕНИЕ (можно менять!)
+# ============================================
+WELCOME_MESSAGE = """
+👋 Привет! Я **Курсорик** — твой ИИ-помощник.
+
+✨ Я умею:
+• Отвечать на любые вопросы
+• Генерировать текст и идеи
+• Переводить с любого языка
+• Помогать с кодом
+• Объяснять сложное простым языком
+
+💬 Просто напиши мне что-нибудь, и я отвечу!
+
+🔹 Попробуй: задай вопрос, попроси перевести или написать текст.
+"""
+# ============================================
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -24,6 +43,11 @@ def webhook():
         if data and 'message' in data:
             chat_id = data['message']['chat']['id']
             user_text = data['message'].get('text')
+            
+            # Обработка команды /start
+            if user_text == '/start':
+                send_telegram_message(chat_id, WELCOME_MESSAGE)
+                return 'ok', 200
             
             if user_text:
                 bot_reply = ask_openrouter(user_text)
@@ -45,18 +69,14 @@ def ask_openrouter(prompt):
     }
     try:
         response = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=30)
-        
-        # Логируем ответ для отладки
-        print(f'Статус ответа OpenRouter: {response.status_code}')
-        
+        print(f'OpenRouter статус: {response.status_code}')
         if response.status_code != 200:
-            print(f'Текст ошибки: {response.text}')
-            return 'Ошибка подключения к ИИ. Проверьте ключ или баланс.'
-        
+            print(f'Ошибка: {response.text}')
+            return 'Ошибка подключения к ИИ. Попробуйте позже.'
         result = response.json()
         return result['choices'][0]['message']['content']
     except Exception as e:
-        print(f'Ошибка при запросе к OpenRouter: {e}')
+        print(f'Ошибка: {e}')
         return f'Ошибка: {str(e)}'
 
 def send_telegram_message(chat_id, text):
